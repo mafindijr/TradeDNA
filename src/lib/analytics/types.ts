@@ -1,26 +1,47 @@
-export type TradeEvent = {
+export type TokenAmount = {
+  address: string;
+  symbol?: string;
+  amount: number;
+  decimals?: number;
+  priceUsd?: number;
+  valueUsd?: number;
+};
+
+export type SwapTrade = {
   hash: string;
   timestamp: string;
   chainId: number;
   chainName: string;
+  buyToken?: TokenAmount;
+  sellToken?: TokenAmount;
   pnlUsd: number;
   valueUsd: number;
   direction: "buy" | "sell";
-  tokenAddresses: string[];
+};
+
+export type TokenPerformance = {
+  token: string;
+  symbol?: string;
+  buyVolumeUsd: number;
+  sellVolumeUsd: number;
+  pnlUsd: number;
+  lastTradeAt: string;
+};
+
+export type TraderClassification = {
+  type: "Degen" | "Swing Trader" | "Diamond Hands" | "Pro Trader" | "Inactive";
+  riskLevel: "Low" | "Medium" | "High";
+  description: string;
 };
 
 export type WalletAnalytics = {
   totalTrades: number;
-  totalPnlUsd: number;
+  pnl: number;
   winRate: number;
-  tokensTraded: number;
-  mostUsedNetwork: string;
-  recentTrades: TradeEvent[];
+  traderType: TraderClassification;
+  trades: SwapTrade[];
   pnlSeries: Array<{ date: string; pnl: number }>;
-};
-
-export type TraderClassification = {
-  type: string;
-  riskLevel: "Low" | "Medium" | "High";
-  description: string;
+  recentTrades: SwapTrade[];
+  mostUsedNetwork: string;
+  tokensPerformance: TokenPerformance[];
 };
