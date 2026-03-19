@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import {
   Table,
@@ -12,11 +13,13 @@ import { Skeleton } from "./ui/skeleton";
 export function DataTable({
   title,
   columns,
+  rows = [],
   isLoading = false,
   emptyLabel = "No trading data found",
 }: {
   title: string;
   columns: string[];
+  rows?: Array<Array<ReactNode>>;
   isLoading?: boolean;
   emptyLabel?: string;
 }) {
@@ -45,6 +48,16 @@ export function DataTable({
                   </div>
                 </TableCell>
               </TableRow>
+            ) : rows.length ? (
+              rows.map((row, index) => (
+                <TableRow key={`${title}-${index}`}>
+                  {row.map((cell, cellIndex) => (
+                    <TableCell key={`${title}-${index}-${cellIndex}`}>
+                      {cell}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="text-muted">
