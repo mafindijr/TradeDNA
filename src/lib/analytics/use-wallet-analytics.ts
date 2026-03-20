@@ -2,57 +2,61 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { DEFAULT_CHAINS, fetchWalletTransactions } from "../blockchain/covalent";
-import type { ChainConfig, CovalentTransaction } from "../blockchain/types";
-import { buildTradeEvents, computeAnalytics } from "./metrics";
-import { classifyTrader } from "./classify";
-import type { TraderClassification, WalletAnalytics } from "./types";
+import type { WalletAnalytics } from "./types";
 
 type AnalyticsState = {
   isLoading: boolean;
   analytics: WalletAnalytics | null;
-  classification: TraderClassification | null;
+  error: string | null;
 };
 
-export function useWalletAnalytics(
-  address: string | null,
-  chains: ChainConfig[] = DEFAULT_CHAINS
-) {
+export function useWalletAnalytics(address: string | null) {
   const [state, setState] = useState<AnalyticsState>({
     isLoading: false,
     analytics: null,
-    classification: null,
+    error: null,
   });
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
     async function run() {
       if (!address) {
-        setState({ isLoading: false, analytics: null, classification: null });
+        setState({ isLoading: false, analytics: null, error: null });
         return;
       }
 
-      setState((prev) => ({ ...prev, isLoading: true }));
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
       try {
-        const results = await fetchWalletTransactions(address, chains);
-        const trades = results.flatMap((result) =>
-          buildTradeEvents(address, result.chain, result.items)
-        );
-        const analytics = computeAnalytics(trades);
-        const classification = classifyTrader(trades);
+        const res = await fetch("/api/analyze-wallet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address }),
+          signal: controller.signal,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data?.error || "Unable to load wallet data.");
+        }
+
+        const analytics = data as WalletAnalytics;
 
         if (isMounted) {
-          setState({ isLoading: false, analytics, classification });
+          setState({ isLoading: false, analytics, error: null });
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
+        const message =
+          error instanceof Error ? error.message : "Unable to load wallet data.";
         if (isMounted) {
-          setState({ isLoading: false, analytics: null, classification: null });
+          setState({ isLoading: false, analytics: null, error: message });
         }
         toast.error("Analytics failed", {
-          description:
-            error instanceof Error ? error.message : "Unable to load wallet data.",
+          description: message,
         });
       }
     }
@@ -61,8 +65,9 @@ export function useWalletAnalytics(
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
-  }, [address, chains]);
+  }, [address]);
 
   return useMemo(() => state, [state]);
 }
