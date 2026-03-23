@@ -12,7 +12,8 @@ import { useWalletAnalytics } from "../../lib/analytics/use-wallet-analytics";
 
 export default function DashboardPage() {
   const { address } = useWallet();
-  const { isLoading, analytics, classification } = useWalletAnalytics(address);
+  const { isLoading, analytics, error } = useWalletAnalytics(address);
+  const emptyLabel = error ?? "No trading data found";
 
   return (
     <AppShell
@@ -23,7 +24,7 @@ export default function DashboardPage() {
         <StatCard
           label="Total PnL"
           helper="Aggregated across networks"
-          value={analytics ? `$${analytics.totalPnlUsd.toLocaleString()}` : undefined}
+          value={analytics ? `$${analytics.pnl.toLocaleString()}` : undefined}
         />
         <StatCard
           label="Win Rate"
@@ -58,7 +59,10 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <TraderProfileCard isLoading={isLoading} classification={classification} />
+        <TraderProfileCard
+          isLoading={isLoading}
+          classification={analytics?.traderType}
+        />
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
@@ -81,7 +85,7 @@ export default function DashboardPage() {
                       {trade.chainName}
                     </p>
                     <p className="text-sm text-white/90">
-                      {trade.direction === "buy" ? "Buy" : "Sell"} · $
+                      {trade.direction === "buy" ? "Buy" : "Sell"} - $
                       {trade.valueUsd.toFixed(2)}
                     </p>
                   </div>
@@ -102,7 +106,7 @@ export default function DashboardPage() {
               ))
             ) : (
               <div className="rounded-xl border border-dashed border-white/10 bg-[#0f141c] p-6 text-sm text-muted">
-                No trading data found
+                {emptyLabel}
               </div>
             )}
           </CardContent>
@@ -113,7 +117,17 @@ export default function DashboardPage() {
         <DataTable
           title="Tokens Performance"
           columns={["Token", "Buy Volume", "Sell Volume", "PnL", "Last Trade"]}
-          emptyLabel="No trading data found"
+          isLoading={isLoading}
+          emptyLabel={emptyLabel}
+          rows={
+            analytics?.tokensPerformance.map((token) => [
+              token.symbol ?? token.token.slice(0, 6),
+              `$${token.buyVolumeUsd.toFixed(2)}`,
+              `$${token.sellVolumeUsd.toFixed(2)}`,
+              `${token.pnlUsd >= 0 ? "+" : "-"}$${Math.abs(token.pnlUsd).toFixed(2)}`,
+              new Date(token.lastTradeAt).toLocaleDateString("en-US"),
+            ]) ?? []
+          }
         />
       </section>
     </AppShell>
