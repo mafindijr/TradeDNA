@@ -64,9 +64,9 @@ export default function SearchPage() {
           value={analytics ? `${analytics.winRate}%` : undefined}
         />
         <StatCard
-          label="Total Trades"
-          helper="Execution history"
-          value={analytics ? analytics.totalTrades.toString() : undefined}
+          label="Transactions"
+          helper="Successful on-chain executions"
+          value={analytics ? analytics.totalTransactions.toString() : undefined}
         />
         <StatCard
           label="Most Used Network"

@@ -35,6 +35,7 @@ export type TraderClassification = {
 };
 
 export type WalletAnalytics = {
+  totalTransactions: number;
   totalTrades: number;
   pnl: number;
   winRate: number;

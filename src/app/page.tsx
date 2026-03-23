@@ -1,8 +1,41 @@
+"use client";
+
 import Link from "next/link";
 import WalletButton from "../components/wallet-button";
 import { Card, CardContent } from "../components/ui/card";
+import { useWallet } from "../components/wallet-provider";
+import { useWalletAnalytics } from "../lib/analytics/use-wallet-analytics";
 
 export default function Home() {
+  const { address } = useWallet();
+  const { isLoading, analytics } = useWalletAnalytics(address);
+  const snapshotStatus = !address
+    ? "Connect wallet"
+    : isLoading
+      ? "Loading analytics"
+      : analytics
+        ? "Live snapshot"
+        : "No trading data";
+
+  const statItems = [
+    {
+      label: "Total PnL",
+      value: analytics ? `$${analytics.pnl.toLocaleString()}` : "--",
+    },
+    {
+      label: "Win Rate",
+      value: analytics ? `${analytics.winRate}%` : "--",
+    },
+    {
+      label: "Transactions",
+      value: analytics ? analytics.totalTransactions.toString() : "--",
+    },
+    {
+      label: "Top Network",
+      value: analytics?.mostUsedNetwork ?? "--",
+    },
+  ];
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-white">
       <div className="pointer-events-none absolute inset-0 page-backdrop" />
@@ -54,31 +87,30 @@ export default function Home() {
                   <p className="text-xs uppercase tracking-[0.3em] text-muted">
                     Wallet Snapshot
                   </p>
-                  <p className="text-lg font-semibold text-white">Awaiting data</p>
+                  <p className="text-lg font-semibold text-white">{snapshotStatus}</p>
                 </div>
                 <div className="rounded-full border border-white/10 px-4 py-2 text-xs text-muted">
-                  Placeholder
+                  {address ? (isLoading ? "Syncing" : "Connected") : "Offline"}
                 </div>
               </div>
               <div className="grid gap-4">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-muted">
-                  Connect a wallet to unlock live performance metrics, win rate,
-                  and token exposure.
+                  {address
+                    ? "Live metrics are updated from the connected wallet."
+                    : "Connect a wallet to unlock live performance metrics, win rate, and token exposure."}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  {["Total PnL", "Win Rate", "Trades", "Top Network"].map(
-                    (label) => (
-                      <div
-                        key={label}
-                        className="rounded-xl border border-white/10 bg-[#0f141c] p-4"
-                      >
-                        <p className="text-xs uppercase tracking-[0.3em] text-muted">
-                          {label}
-                        </p>
-                        <p className="mt-3 text-xl text-white">--</p>
-                      </div>
-                    )
-                  )}
+                  {statItems.map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-xl border border-white/10 bg-[#0f141c] p-4"
+                    >
+                      <p className="text-xs uppercase tracking-[0.3em] text-muted">
+                        {item.label}
+                      </p>
+                      <p className="mt-3 text-xl text-white">{item.value}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>

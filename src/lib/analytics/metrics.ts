@@ -26,6 +26,7 @@ export function computeAnalytics(trades: SwapTrade[]): WalletAnalytics {
     "Unknown";
 
   return {
+    totalTransactions: trades.length,
     totalTrades: trades.length,
     pnl: totalPnl,
     winRate,

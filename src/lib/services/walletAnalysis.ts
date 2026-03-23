@@ -20,6 +20,14 @@ type Transfer = {
   to: string;
 };
 
+const NATIVE_SYMBOL_BY_CHAIN: Record<number, string> = {
+  1: "ETH",
+};
+
+function isNativeAddress(address: string | undefined) {
+  return Boolean(address && address.startsWith("native:"));
+}
+
 function normalizeAddress(address: string) {
   return address.toLowerCase();
 }
@@ -68,6 +76,16 @@ function extractTransfers(
     );
 }
 
+function buildNativeToken(chain: ChainConfig, valueUsd: number) {
+  return {
+    address: `native:${chain.id}`,
+    symbol: NATIVE_SYMBOL_BY_CHAIN[chain.id] ?? "NATIVE",
+    amount: 1,
+    decimals: 18,
+    valueUsd,
+  };
+}
+
 function buildSwapTrade(
   walletAddress: string,
   transfers: Transfer[],
@@ -82,14 +100,65 @@ function buildSwapTrade(
     (transfer) => normalizeAddress(transfer.from) === normalizedWallet
   );
 
-  if (incoming.length === 0 || outgoing.length === 0) return null;
-
   // Heuristic: treat any tx with both outgoing and incoming ERC20 transfers as a swap,
   // then pick the largest transfer on each side to represent the trade.
   const pickLargest = (items: Transfer[]) =>
     items.reduce((best, current) =>
       current.amount > best.amount ? current : best
     );
+
+  const hasValueQuote =
+    typeof tx.value_quote === "number" && Number.isFinite(tx.value_quote) && tx.value_quote > 0;
+
+  if (incoming.length === 0 || outgoing.length === 0) {
+    if (!hasValueQuote) return null;
+
+    if (incoming.length > 0 && outgoing.length === 0) {
+      const buyTransfer = pickLargest(incoming);
+      const sellToken = buildNativeToken(chain, tx.value_quote ?? 0);
+
+      return {
+        hash: tx.tx_hash,
+        timestamp: tx.block_signed_at,
+        chainId: chain.id,
+        chainName: chain.name,
+        buyToken: {
+          address: buyTransfer.tokenAddress,
+          symbol: buyTransfer.symbol,
+          amount: buyTransfer.amount,
+          decimals: buyTransfer.decimals,
+        },
+        sellToken,
+        pnlUsd: 0,
+        valueUsd: 0,
+        direction: "buy",
+      };
+    }
+
+    if (outgoing.length > 0 && incoming.length === 0) {
+      const sellTransfer = pickLargest(outgoing);
+      const buyToken = buildNativeToken(chain, tx.value_quote ?? 0);
+
+      return {
+        hash: tx.tx_hash,
+        timestamp: tx.block_signed_at,
+        chainId: chain.id,
+        chainName: chain.name,
+        buyToken,
+        sellToken: {
+          address: sellTransfer.tokenAddress,
+          symbol: sellTransfer.symbol,
+          amount: sellTransfer.amount,
+          decimals: sellTransfer.decimals,
+        },
+        pnlUsd: 0,
+        valueUsd: 0,
+        direction: "buy",
+      };
+    }
+
+    return null;
+  }
 
   const buyTransfer = pickLargest(incoming);
   const sellTransfer = pickLargest(outgoing);
@@ -121,17 +190,21 @@ function hydrateTradesWithPrices(
   trades: SwapTrade[],
   priceMap: Record<string, { priceUsd: number; symbol?: string }>
 ) {
-  return trades.map((trade) => {
+  return trades.map<SwapTrade>((trade) => {
     const buyAddress = trade.buyToken?.address?.toLowerCase();
     const sellAddress = trade.sellToken?.address?.toLowerCase();
     const buyInfo = buyAddress ? priceMap[buyAddress] : undefined;
     const sellInfo = sellAddress ? priceMap[sellAddress] : undefined;
 
-    const buyPrice = buyInfo?.priceUsd ?? 0;
-    const sellPrice = sellInfo?.priceUsd ?? 0;
+    const buyPrice = buyInfo?.priceUsd ?? trade.buyToken?.priceUsd ?? 0;
+    const sellPrice = sellInfo?.priceUsd ?? trade.sellToken?.priceUsd ?? 0;
 
-    const buyValue = (trade.buyToken?.amount ?? 0) * buyPrice;
-    const sellValue = (trade.sellToken?.amount ?? 0) * sellPrice;
+    const buyValue =
+      trade.buyToken?.valueUsd ??
+      (trade.buyToken?.amount ?? 0) * buyPrice;
+    const sellValue =
+      trade.sellToken?.valueUsd ??
+      (trade.sellToken?.amount ?? 0) * sellPrice;
 
     if (trade.buyToken) {
       trade.buyToken.priceUsd = buyPrice;
@@ -226,20 +299,26 @@ export async function analyzeWallet(
 
   const trades: SwapTrade[] = [];
   const tokenAddresses: string[] = [];
+  let totalTransactions = 0;
 
   results.forEach((result) => {
-    result.items
-      .filter((tx) => tx.successful)
-      .forEach((tx) => {
-        const transfers = extractTransfers(normalized, result.chain, tx);
-        const trade = buildSwapTrade(normalized, transfers, tx, result.chain);
-        if (!trade) return;
+    result.items.forEach((tx) => {
+      if (!tx.successful) return;
+      totalTransactions += 1;
 
-        if (trade.buyToken?.address) tokenAddresses.push(trade.buyToken.address);
-        if (trade.sellToken?.address) tokenAddresses.push(trade.sellToken.address);
+      const transfers = extractTransfers(normalized, result.chain, tx);
+      const trade = buildSwapTrade(normalized, transfers, tx, result.chain);
+      if (!trade) return;
 
-        trades.push(trade);
-      });
+      if (trade.buyToken?.address && !isNativeAddress(trade.buyToken.address)) {
+        tokenAddresses.push(trade.buyToken.address);
+      }
+      if (trade.sellToken?.address && !isNativeAddress(trade.sellToken.address)) {
+        tokenAddresses.push(trade.sellToken.address);
+      }
+
+      trades.push(trade);
+    });
   });
 
   const priceMap = await fetchTokenPrices(tokenAddresses);
@@ -269,6 +348,7 @@ export async function analyzeWallet(
   const tokensPerformance = buildTokenPerformance(pricedTrades);
 
   return {
+    totalTransactions,
     totalTrades: pricedTrades.length,
     pnl: totalPnl,
     winRate,
