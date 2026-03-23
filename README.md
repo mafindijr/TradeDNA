@@ -1,4 +1,4 @@
-# TraseDNA
+# TradeDNA
 
 Wallet analytics dashboard for on-chain traders. Search any address to view PnL, win rate, trading activity, and token-level performance across supported networks.
 
