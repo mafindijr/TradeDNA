@@ -189,8 +189,8 @@ function buildSwapTrade(
 function hydrateTradesWithPrices(
   trades: SwapTrade[],
   priceMap: Record<string, { priceUsd: number; symbol?: string }>
-) {
-  return trades.map<SwapTrade>((trade) => {
+): SwapTrade[] {
+  return trades.map((trade) => {
     const buyAddress = trade.buyToken?.address?.toLowerCase();
     const sellAddress = trade.sellToken?.address?.toLowerCase();
     const buyInfo = buyAddress ? priceMap[buyAddress] : undefined;
@@ -221,11 +221,13 @@ function hydrateTradesWithPrices(
     const pnlUsd = Number((buyValue - sellValue).toFixed(2));
     const valueUsd = Number(Math.max(buyValue, sellValue).toFixed(2));
 
+    const direction: SwapTrade["direction"] = buyValue >= sellValue ? "buy" : "sell";
+
     return {
       ...trade,
       pnlUsd,
       valueUsd,
-      direction: buyValue >= sellValue ? "buy" : "sell",
+      direction,
     };
   });
 }
