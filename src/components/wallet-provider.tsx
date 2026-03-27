@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
+import EthereumProvider from "@walletconnect/ethereum-provider";
 import { toast } from "sonner";
 
 type WalletContextValue = {
@@ -11,11 +12,35 @@ type WalletContextValue = {
   disconnect: () => void;
 };
 
+type ConnectorType = "injected" | "walletconnect";
+
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connector, setConnector] = useState<ConnectorType | null>(null);
+  const walletConnectRef = useRef<EthereumProvider | null>(null);
+
+  async function getWalletConnectProvider() {
+    const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+    if (!projectId || projectId === "replace_with_your_project_id") {
+      throw new Error("WalletConnect is not configured.");
+    }
+
+    if (walletConnectRef.current) {
+      return walletConnectRef.current;
+    }
+
+    const provider = await EthereumProvider.init({
+      projectId,
+      chains: [1],
+      showQrModal: true,
+    });
+
+    walletConnectRef.current = provider;
+    return provider;
+  }
 
   async function connect() {
     if (isConnecting) return;
@@ -23,14 +48,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const ethereum = (window as any).ethereum;
-      if (!ethereum) {
-        toast.error("Wallet not detected", {
-          description: "Install MetaMask or OKX Wallet to continue.",
-        });
-        return;
-      }
+      const source = ethereum ?? (await getWalletConnectProvider().then(async (wc) => {
+        await wc.connect();
+        return wc;
+      }));
 
-      const provider = new ethers.BrowserProvider(ethereum);
+      setConnector(ethereum ? "injected" : "walletconnect");
+
+      const provider = new ethers.BrowserProvider(source);
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
@@ -40,8 +65,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         description: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
       });
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Please check your wallet permissions.";
       toast.error("Connection failed", {
-        description: "Please check your wallet permissions.",
+        description: message,
       });
     } finally {
       setIsConnecting(false);
@@ -49,6 +76,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }
 
   function disconnect() {
+    if (connector === "walletconnect") {
+      const wcProvider = walletConnectRef.current;
+      if (wcProvider?.disconnect) {
+        void wcProvider.disconnect();
+      }
+    }
+    setConnector(null);
     setAddress(null);
     toast("Disconnected", {
       description: "Your wallet connection has been cleared.",
