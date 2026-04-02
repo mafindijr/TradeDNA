@@ -39,6 +39,7 @@ export default function RootLayout({
               "rounded-xl border border-white/10 bg-[#111827] text-white shadow-[0_12px_24px_rgba(0,0,0,0.35)]",
           }}
         />
+
       </body>
     </html>
   );
