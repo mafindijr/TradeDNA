@@ -3,34 +3,26 @@ export type ChainConfig = {
   name: string;
 };
 
-export type CovalentLogEvent = {
-  decoded?: {
-    name?: string;
-    params?: Array<{
-      name: string;
-      value: string | number;
-    }>;
-  };
-  sender_address?: string;
-  sender_contract_address?: string;
-  sender_contract_decimals?: number;
-  sender_contract_ticker_symbol?: string;
-  raw_log_data?: string;
-  raw_log_topics?: string[];
+// Represents a raw log from Ethers.js
+export type RawLog = {
+  transactionHash: string;
+  blockHash: string;
+  blockNumber: number;
+  transactionIndex: number;
+  address: string;
+  data: string;
+  topics: readonly string[];
+  index: number;
+  removed: boolean;
 };
 
-export type CovalentTransaction = {
-  tx_hash: string;
+export type NormalizedTransaction = {
+  hash: string;
   successful: boolean;
-  block_signed_at: string;
-  from_address: string;
-  to_address: string | null;
-  value_quote: number | null;
-  log_events?: CovalentLogEvent[];
-};
-
-export type CovalentResponse<T> = {
-  data: {
-    items: T[];
-  };
+  timestamp: string;
+  from: string;
+  to: string | null;
+  value: bigint;   // in wei
+  valueUsd: number | null; // estimated usd value of native token transferred
+  logs: RawLog[];
 };
