@@ -1,8 +1,8 @@
 import { formatUnits } from "ethers";
-import { DEFAULT_CHAINS, fetchWalletTransactions } from "../apis/covalent";
+import { DEFAULT_CHAINS, fetchWalletTransactions } from "../apis/transactions";
 import { fetchTokenPrices } from "../apis/dexscreener";
 import { decodeErc20Transfer } from "../apis/ethers";
-import type { ChainConfig, CovalentTransaction } from "../apis/types";
+import type { ChainConfig, NormalizedTransaction } from "../apis/types";
 import { buildPnlSeries, calculateTotalPnl } from "../analytics/pnl";
 import { calculateWinRate } from "../analytics/winrate";
 import { classifyTrader } from "../analytics/traderType";
@@ -43,12 +43,12 @@ function parseTransferAmount(value: string, decimals: number) {
 function extractTransfers(
   walletAddress: string,
   chain: ChainConfig,
-  tx: CovalentTransaction
+  tx: NormalizedTransaction
 ): Transfer[] {
   const normalizedWallet = normalizeAddress(walletAddress);
-  const logEvents = tx.log_events ?? [];
+  const logs = tx.logs ?? [];
 
-  return logEvents
+  return logs
     .map((event) => decodeErc20Transfer(event))
     .filter((transfer): transfer is NonNullable<typeof transfer> => Boolean(transfer))
     .map((transfer) => {
@@ -57,8 +57,8 @@ function extractTransfers(
       const amount = parseTransferAmount(transfer.value, decimals);
 
       return {
-        txHash: tx.tx_hash,
-        timestamp: tx.block_signed_at,
+        txHash: tx.hash,
+        timestamp: tx.timestamp,
         chain,
         tokenAddress,
         symbol: transfer.symbol,
@@ -89,7 +89,7 @@ function buildNativeToken(chain: ChainConfig, valueUsd: number) {
 function buildSwapTrade(
   walletAddress: string,
   transfers: Transfer[],
-  tx: CovalentTransaction,
+  tx: NormalizedTransaction,
   chain: ChainConfig
 ): SwapTrade | null {
   const normalizedWallet = normalizeAddress(walletAddress);
@@ -100,26 +100,25 @@ function buildSwapTrade(
     (transfer) => normalizeAddress(transfer.from) === normalizedWallet
   );
 
-  // Heuristic: treat any tx with both outgoing and incoming ERC20 transfers as a swap,
-  // then pick the largest transfer on each side to represent the trade.
+  // Heuristic: pick the largest transfer on each side to represent the trade.
   const pickLargest = (items: Transfer[]) =>
     items.reduce((best, current) =>
       current.amount > best.amount ? current : best
     );
 
   const hasValueQuote =
-    typeof tx.value_quote === "number" && Number.isFinite(tx.value_quote) && tx.value_quote > 0;
+    typeof tx.valueUsd === "number" && Number.isFinite(tx.valueUsd) && tx.valueUsd > 0;
 
   if (incoming.length === 0 || outgoing.length === 0) {
     if (!hasValueQuote) return null;
 
     if (incoming.length > 0 && outgoing.length === 0) {
       const buyTransfer = pickLargest(incoming);
-      const sellToken = buildNativeToken(chain, tx.value_quote ?? 0);
+      const sellToken = buildNativeToken(chain, tx.valueUsd ?? 0);
 
       return {
-        hash: tx.tx_hash,
-        timestamp: tx.block_signed_at,
+        hash: tx.hash,
+        timestamp: tx.timestamp,
         chainId: chain.id,
         chainName: chain.name,
         buyToken: {
@@ -137,11 +136,11 @@ function buildSwapTrade(
 
     if (outgoing.length > 0 && incoming.length === 0) {
       const sellTransfer = pickLargest(outgoing);
-      const buyToken = buildNativeToken(chain, tx.value_quote ?? 0);
+      const buyToken = buildNativeToken(chain, tx.valueUsd ?? 0);
 
       return {
-        hash: tx.tx_hash,
-        timestamp: tx.block_signed_at,
+        hash: tx.hash,
+        timestamp: tx.timestamp,
         chainId: chain.id,
         chainName: chain.name,
         buyToken,
@@ -164,8 +163,8 @@ function buildSwapTrade(
   const sellTransfer = pickLargest(outgoing);
 
   return {
-    hash: tx.tx_hash,
-    timestamp: tx.block_signed_at,
+    hash: tx.hash,
+    timestamp: tx.timestamp,
     chainId: chain.id,
     chainName: chain.name,
     buyToken: {
