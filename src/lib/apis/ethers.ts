@@ -1,5 +1,5 @@
 import { Interface } from "ethers";
-import type { CovalentLogEvent } from "./types";
+import type { RawLog } from "./types";
 
 export type Erc20Transfer = {
   from: string;
@@ -14,52 +14,33 @@ const erc20Interface = new Interface([
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 ]);
 
-function getParamValue(params: Array<{ name: string; value: string | number }>, name: string) {
-  const param = params.find((item) => item.name.toLowerCase() === name.toLowerCase());
-  if (!param) return undefined;
-  return String(param.value);
-}
-
-export function decodeErc20Transfer(logEvent: CovalentLogEvent): Erc20Transfer | null {
-  if (logEvent.decoded?.name?.toLowerCase() === "transfer") {
-    const params = logEvent.decoded.params ?? [];
-    const from = getParamValue(params, "from");
-    const to = getParamValue(params, "to");
-    const value = getParamValue(params, "value");
-
-    if (!from || !to || !value) return null;
-
-    return {
-      from,
-      to,
-      value,
-      tokenAddress: logEvent.sender_contract_address ?? logEvent.sender_address,
-      symbol: logEvent.sender_contract_ticker_symbol,
-      decimals: logEvent.sender_contract_decimals,
-    };
+export function decodeErc20Transfer(logEvent: RawLog): Erc20Transfer | null {
+  if (!logEvent.data || !logEvent.topics?.length) {
+    return null;
   }
 
-  if (logEvent.raw_log_data && logEvent.raw_log_topics?.length) {
-    try {
-      const parsed = erc20Interface.parseLog({
-        data: logEvent.raw_log_data,
-        topics: logEvent.raw_log_topics,
-      });
+  try {
+    const parsed = erc20Interface.parseLog({
+      data: logEvent.data,
+      topics: [...logEvent.topics],
+    });
 
-      if (!parsed || parsed.name.toLowerCase() !== "transfer") return null;
-
-      return {
-        from: String(parsed.args.from),
-        to: String(parsed.args.to),
-        value: parsed.args.value.toString(),
-        tokenAddress: logEvent.sender_contract_address ?? logEvent.sender_address,
-        symbol: logEvent.sender_contract_ticker_symbol,
-        decimals: logEvent.sender_contract_decimals,
-      };
-    } catch {
+    if (!parsed || parsed.name.toLowerCase() !== "transfer") {
       return null;
     }
-  }
 
-  return null;
+    return {
+      from: String(parsed.args.from),
+      to: String(parsed.args.to),
+      value: parsed.args.value.toString(),
+      tokenAddress: logEvent.address,
+      // Since Infura doesn't provide symbol/decimals inside standard log events natively,
+      // these will typically be undefined, and we'll fall back to Dexscreener prices
+      // later in walletAnalysis.ts.
+      symbol: undefined,
+      decimals: undefined,
+    };
+  } catch {
+    return null;
+  }
 }

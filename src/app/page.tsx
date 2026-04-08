@@ -7,6 +7,7 @@ import { useWallet } from "../components/wallet-provider";
 import { useWalletAnalytics } from "../lib/analytics/use-wallet-analytics";
 
 export default function Home() {
+
   const { address } = useWallet();
   const { isLoading, analytics } = useWalletAnalytics(address);
   const snapshotStatus = !address

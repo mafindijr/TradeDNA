@@ -5,6 +5,7 @@ import { Button } from "./ui/button";
 import { useWallet } from "./wallet-provider";
 
 export default function WalletButton() {
+
   const { address, isConnecting, connect, disconnect } = useWallet();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
