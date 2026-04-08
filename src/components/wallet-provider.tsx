@@ -14,6 +14,55 @@ type WalletContextValue = {
 
 type ConnectorType = "injected" | "walletconnect";
 
+// WalletConnect project IDs are public identifiers (not secrets).
+// Keep a fallback so production doesn't break if NEXT_PUBLIC env is missing.
+const WALLETCONNECT_PROJECT_ID_FALLBACK = "afb043c79383235760f0068dedd27d20";
+
+function resolveWalletConnectProjectId() {
+  const primary = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+  const legacy = process.env.NEXT_PUBLIC_WALLETCONNECTPROJECT_ID;
+  const candidate = primary || legacy;
+  if (!candidate || candidate === "replace_with_your_project_id") {
+    return WALLETCONNECT_PROJECT_ID_FALLBACK;
+  }
+  return candidate;
+}
+
+function getFriendlyConnectError(error: unknown, usedWalletConnect: boolean) {
+  const rawMessage =
+    error instanceof Error ? error.message : "Please check your wallet permissions.";
+  const normalized = rawMessage.toLowerCase();
+
+  if (
+    normalized.includes("user rejected") ||
+    normalized.includes("rejected the request") ||
+    normalized.includes("request rejected")
+  ) {
+    return "Connection request was rejected in your wallet app.";
+  }
+
+  if (usedWalletConnect) {
+    if (
+      normalized.includes("walletconnect is not configured") ||
+      normalized.includes("project id")
+    ) {
+      return "Wallet link is temporarily unavailable. Please try again in a moment.";
+    }
+
+    if (
+      normalized.includes("no matching key") ||
+      normalized.includes("pairing") ||
+      normalized.includes("session")
+    ) {
+      return "Your wallet session expired. Reopen your wallet app and connect again.";
+    }
+
+    return "We could not connect to your wallet right now. Please retry.";
+  }
+
+  return rawMessage;
+}
+
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -23,10 +72,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const walletConnectRef = useRef<EthereumProvider | null>(null);
 
   async function getWalletConnectProvider() {
-    const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
-    if (!projectId || projectId === "replace_with_your_project_id") {
-      throw new Error("WalletConnect is not configured.");
-    }
+    const projectId = resolveWalletConnectProjectId();
 
     if (walletConnectRef.current) {
       return walletConnectRef.current;
@@ -48,6 +94,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const ethereum = (window as any).ethereum;
+      const usedWalletConnect = !ethereum;
       const source = ethereum ?? (await getWalletConnectProvider().then(async (wc) => {
         await wc.connect();
         return wc;
@@ -65,8 +112,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         description: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Please check your wallet permissions.";
+      const ethereum = (window as any).ethereum;
+      const usedWalletConnect = !ethereum;
+      const message = getFriendlyConnectError(error, usedWalletConnect);
       toast.error("Connection failed", {
         description: message,
       });

@@ -1,0 +1,53 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="64" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A1322"/>
+      <stop offset="1" stop-color="#0F1E3A"/>
+    </linearGradient>
+    <linearGradient id="dnaA" x1="140" y1="92" x2="380" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2CE6C8"/>
+      <stop offset="1" stop-color="#25A6FF"/>
+    </linearGradient>
+    <linearGradient id="dnaB" x1="388" y1="92" x2="132" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#64F28D"/>
+      <stop offset="1" stop-color="#2CE6C8"/>
+    </linearGradient>
+    <linearGradient id="candleGrad" x1="120" y1="360" x2="392" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8FB6FF"/>
+      <stop offset="1" stop-color="#E6EEFF"/>
+    </linearGradient>
+    <filter id="softGlow" x="56" y="56" width="400" height="400" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="40" y="40" width="432" height="432" rx="96" fill="url(#bgGrad)"/>
+  <rect x="52" y="52" width="408" height="408" rx="84" stroke="#6FA3FF" stroke-opacity="0.22" stroke-width="2"/>
+
+  <g filter="url(#softGlow)">
+    <path d="M164 96C253 146 259 214 346 264C391 290 390 345 332 392" stroke="url(#dnaA)" stroke-width="16" stroke-linecap="round"/>
+    <path d="M348 96C259 146 253 214 166 264C121 290 122 345 180 392" stroke="url(#dnaB)" stroke-width="16" stroke-linecap="round"/>
+  </g>
+
+  <g stroke="#DDF5FF" stroke-opacity="0.8" stroke-width="8" stroke-linecap="round">
+    <line x1="196" y1="142" x2="316" y2="142"/>
+    <line x1="176" y1="206" x2="336" y2="206"/>
+    <line x1="160" y1="270" x2="352" y2="270"/>
+    <line x1="172" y1="334" x2="340" y2="334"/>
+  </g>
+
+  <g stroke="url(#candleGrad)" stroke-width="10" stroke-linecap="round" fill="#E6F0FF">
+    <line x1="190" y1="372" x2="190" y2="304"/>
+    <rect x="174" y="320" width="32" height="44" rx="8"/>
+    <line x1="256" y1="384" x2="256" y2="290"/>
+    <rect x="240" y="308" width="32" height="62" rx="8"/>
+    <line x1="322" y1="370" x2="322" y2="320"/>
+    <rect x="306" y="332" width="32" height="34" rx="8"/>
+  </g>
+
+  <circle cx="256" cy="256" r="184" stroke="#79A9FF" stroke-opacity="0.2" stroke-width="2"/>
+</svg>
