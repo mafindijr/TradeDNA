@@ -3,6 +3,7 @@ import { analyzeWallet } from "../../../lib/services/walletAnalysis";
 
 export async function POST(request: Request) {
   try {
+    
     const body = await request.json();
     const address = typeof body?.address === "string" ? body.address.trim() : "";
 
