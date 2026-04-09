@@ -4,6 +4,8 @@ TradeDNA is a Web3 wallet analytics dashboard built with Next.js that helps trad
 
 It combines wallet connection, address search, transaction ingestion, token pricing, and derived analytics into one interface.
 
+![TradeDNA Dashboard Screenshot](public/screenshots/screenshot.png)
+
 ## What You Can Do
 
 - Connect wallet on desktop and mobile (WalletConnect fallback for mobile/deep-link flow).
