@@ -14,6 +14,14 @@ type WalletContextValue = {
 
 type ConnectorType = "injected" | "walletconnect";
 
+type InjectedProvider = {
+  request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  isMetaMask?: boolean;
+  isOkxWallet?: boolean;
+  isCoinbaseWallet?: boolean;
+  providers?: InjectedProvider[];
+};
+
 // WalletConnect project IDs are public identifiers (not secrets).
 // Keep a fallback so production doesn't break if NEXT_PUBLIC env is missing.
 const WALLETCONNECT_PROJECT_ID_FALLBACK = "afb043c79383235760f0068dedd27d20";
@@ -63,6 +71,43 @@ function getFriendlyConnectError(error: unknown, usedWalletConnect: boolean) {
   return rawMessage;
 }
 
+function getInjectedProviders() {
+  const globalWindow = window as Window & {
+    ethereum?: InjectedProvider;
+    okxwallet?: InjectedProvider;
+  };
+
+  const providers: InjectedProvider[] = [];
+
+  const addProvider = (provider: InjectedProvider | undefined) => {
+    if (!provider?.request) return;
+    const alreadyAdded = providers.some((item) => item === provider);
+    if (!alreadyAdded) {
+      providers.push(provider);
+    }
+  };
+
+  addProvider(globalWindow.ethereum);
+
+  const nestedProviders = globalWindow.ethereum?.providers ?? [];
+  nestedProviders.forEach((provider) => addProvider(provider));
+  addProvider(globalWindow.okxwallet);
+
+  return providers;
+}
+
+function getPreferredInjectedProvider() {
+  const candidates = getInjectedProviders();
+
+  return (
+    candidates.find((provider) => provider.isOkxWallet) ??
+    candidates.find((provider) => provider.isMetaMask) ??
+    candidates.find((provider) => provider.isCoinbaseWallet) ??
+    candidates[0] ??
+    null
+  );
+}
+
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -93,16 +138,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setIsConnecting(true);
 
     try {
-      const ethereum = (window as any).ethereum;
-      const usedWalletConnect = !ethereum;
-      const source = ethereum ?? (await getWalletConnectProvider().then(async (wc) => {
-        await wc.connect();
-        return wc;
-      }));
+      const injectedProvider = getPreferredInjectedProvider();
+      const shouldUseInjected = Boolean(injectedProvider);
 
-      setConnector(ethereum ? "injected" : "walletconnect");
+      const source = shouldUseInjected
+        ? injectedProvider
+        : await getWalletConnectProvider().then(async (wc) => {
+            await wc.connect();
+            return wc;
+          });
 
-      const provider = new ethers.BrowserProvider(source);
+      setConnector(shouldUseInjected ? "injected" : "walletconnect");
+
+      const provider = new ethers.BrowserProvider(source as any);
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
@@ -112,8 +160,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         description: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
       });
     } catch (error) {
-      const ethereum = (window as any).ethereum;
-      const usedWalletConnect = !ethereum;
+      const injectedProvider = getPreferredInjectedProvider();
+      const usedWalletConnect = !injectedProvider;
       const message = getFriendlyConnectError(error, usedWalletConnect);
       toast.error("Connection failed", {
         description: message,
